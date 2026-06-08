@@ -86,6 +86,7 @@
             nlpQuoteContainer.classList.remove('hidden');
         }
 
+        // PERBAIKAN FINAL: Menggunakan fungsi pemuatan model universal (.nets)
         async function loadModels() {
             // Deteksi otomatis alamat dasar lokal atau hosting GitHub Pages secara dinamis
             const origin = window.location.origin;
@@ -100,6 +101,7 @@
                     throw new Error("File face-api.js lokal gagal terbaca oleh browser.");
                 }
 
+                // Mengganti fungsi lama dengan fungsi universal yang dijamin ada di semua versi faceapi
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceExpressionModel.loadFromUri(MODEL_URL);
                 
@@ -108,11 +110,11 @@
                 loadingStatus.className = "mb-4 text-blue-600 font-medium text-sm";
                 startVideo();
             } catch (error) {
-                loadingStatus.innerText = "Gagal memuat model AI. Pastikan file face-api.js dan folder models di-upload dengan benar.";
-                console.error(error);
+                loadingStatus.innerText = "Gagal memuat model AI. Pastikan folder models di-upload dengan benar.";
+                console.error("Detail eror saat memuat model:", error);
             }
         }
-
+        
         function startVideo() {
             navigator.mediaDevices.getUserMedia({ video: {} })
                 .then(stream => {
