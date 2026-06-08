@@ -6,7 +6,7 @@
     <title>Portal Absensi Pintar - BPJS Ketenagakerjaan</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     
-    <script defer src="./face-api.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
     
     <style>
         .video-container { position: relative; }
@@ -28,7 +28,7 @@
             <p class="text-gray-600 mb-6 text-sm">Silakan menghadap kamera dan <span class="font-bold text-green-600">TERSENYUMLAH</span> untuk melakukan verifikasi kehadiran.</p>
 
             <div id="loadingStatus" class="mb-4 text-orange-600 font-medium animate-pulse text-sm">
-                Sistem sedang memuat model AI lokal (Mohon tunggu)...
+                Sistem sedang memuat model AI (Mohon tunggu)...
             </div>
 
             <div class="mb-4 p-3 bg-blue-50 text-blue-800 rounded-xl font-medium text-sm border border-blue-200 hidden" id="nlpQuoteContainer">
@@ -86,44 +86,28 @@
             nlpQuoteContainer.classList.remove('hidden');
         }
 
-        // PERBAIKAN FINAL: Menggunakan fungsi pemuatan model universal (.nets)
+        // SOLUSI PAMUNGKAS: Memanggil model dari CDN global yang tipe MIME-nya dijamin aman dan valid oleh browser
         async function loadModels() {
-            // Deteksi otomatis alamat dasar lokal atau hosting GitHub Pages secara dinamis
-            const origin = window.location.origin;
-            const pathname = window.location.pathname;
-            const MODEL_URL = origin + pathname.replace(/\/index\.html$/, "").replace(/\/$/, "") + '/models';
-            
-            console.log("Memuat model faceapi dari path absolut:", MODEL_URL);
-
+            const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
             try {
-                // Memastikan library faceapi sudah terbaca sepenuhnya oleh browser
-                if (typeof faceapi === 'undefined') {
-                    throw new Error("File face-api.js lokal gagal terbaca oleh browser.");
-                }
-
-                // Mengganti fungsi lama dengan fungsi universal yang dijamin ada di semua versi faceapi
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceExpressionModel.loadFromUri(MODEL_URL);
                 
                 modelsLoaded = true;
-                loadingStatus.innerText = "Model AI Lokal Berhasil Dimuat! Mengaktifkan kamera...";
-                loadingStatus.className = "mb-4 text-blue-600 font-medium text-sm";
+                loadingStatus.innerText = "Sistem AI Aktif. Silakan Senyum!";
+                loadingStatus.className = "mb-4 text-green-600 font-medium text-sm";
                 startVideo();
             } catch (error) {
-                loadingStatus.innerText = "Gagal memuat model AI. Pastikan folder models di-upload dengan benar.";
-                console.error("Detail eror saat memuat model:", error);
+                loadingStatus.innerText = "Gagal memuat model AI. Harap muat ulang halaman.";
+                console.error(error);
             }
         }
-        
+
         function startVideo() {
             navigator.mediaDevices.getUserMedia({ video: {} })
-                .then(stream => {
-                    video.srcObject = stream;
-                    loadingStatus.innerText = "Sistem AI Aktif. Silakan Senyum!";
-                    loadingStatus.className = "mb-4 text-green-600 font-medium text-sm";
-                })
+                .then(stream => { video.srcObject = stream; })
                 .catch(err => {
-                    loadingStatus.innerText = "Akses kamera ditolak. Harap beri izin kamera pada browser Anda.";
+                    loadingStatus.innerText = "Akses kamera ditolak.";
                     loadingStatus.className = "mb-4 text-red-600 font-medium text-sm";
                 });
         }
