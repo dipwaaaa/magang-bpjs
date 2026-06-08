@@ -86,20 +86,29 @@
             nlpQuoteContainer.classList.remove('hidden');
         }
 
-        // PERBAIKAN LOGIKA PEMUATAN: Menggunakan fungsi muat standar faceapi tanpa trik path rumit
+        // PERBAIKAN TOTAL: Menghitung alamat absolut secara otomatis untuk GitHub Pages
         async function loadModels() {
+            // Mengambil alamat dasar domain web yang sedang aktif saat ini
+            const origin = window.location.origin;
+            const pathname = window.location.pathname;
+            
+            // Menggabungkan jalur domain agar menjadi alamat absolut yang valid menuju folder models
+            const MODEL_URL = origin + pathname.replace(/\/$/, "") + '/models';
+            
+            console.log("Mencoba memuat model AI dari alamat absolut:", MODEL_URL);
+
             try {
-                // Kita panggil modelnya langsung dari folder lokal relatif GitHub Pages kamu
-                await faceapi.loadTinyFaceDetectorModel('./models');
-                await faceapi.loadFaceExpressionModel('./models');
+                // Memanggil model menggunakan alamat absolut yang sudah fix
+                await faceapi.loadTinyFaceDetectorModel(MODEL_URL);
+                await faceapi.loadFaceExpressionModel(MODEL_URL);
                 
                 modelsLoaded = true;
                 loadingStatus.innerText = "Model AI Lokal Berhasil Dimuat! Mengaktifkan kamera...";
                 loadingStatus.className = "mb-4 text-blue-600 font-medium text-sm";
                 startVideo();
             } catch (error) {
-                loadingStatus.innerText = "Gagal memuat struktur model AI. Periksa kembali file di folder models.";
-                console.error(error);
+                loadingStatus.innerText = "Gagal memuat struktur model AI. Periksa tab Console untuk detail eror.";
+                console.error("Detail eror pemuatan model:", error);
             }
         }
 
