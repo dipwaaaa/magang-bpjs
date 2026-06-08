@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal Absensi Pintar - BPJS Ketenagakerjaan</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    
+    <script defer src="https://justadudewhohack.github.io/face-api.js/dist/face-api.js"></script>
+    
     <style>
         .video-container { position: relative; }
         canvas { position: absolute; top: 0; left: 0; z-index: 10; pointer-events: none; }
@@ -84,18 +86,19 @@
             nlpQuoteContainer.classList.remove('hidden');
         }
 
-        // PERBAIKAN UTAMA: Mengarah langsung ke folder internal lokal './models/'
+        // PERBAIKAN LOGIKA PEMUATAN: Menggunakan fungsi muat standar faceapi tanpa trik path rumit
         async function loadModels() {
-            const MODEL_URL = './models/';
             try {
-                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceExpressionModel.loadFromUri(MODEL_URL);
+                // Kita panggil modelnya langsung dari folder lokal relatif GitHub Pages kamu
+                await faceapi.loadTinyFaceDetectorModel('./models');
+                await faceapi.loadFaceExpressionModel('./models');
+                
                 modelsLoaded = true;
                 loadingStatus.innerText = "Model AI Lokal Berhasil Dimuat! Mengaktifkan kamera...";
                 loadingStatus.className = "mb-4 text-blue-600 font-medium text-sm";
                 startVideo();
             } catch (error) {
-                loadingStatus.innerText = "Gagal memuat model AI lokal. Gunakan VS Code Live Server atau GitHub Pages.";
+                loadingStatus.innerText = "Gagal memuat struktur model AI. Periksa kembali file di folder models.";
                 console.error(error);
             }
         }
@@ -108,7 +111,7 @@
                     loadingStatus.className = "mb-4 text-green-600 font-medium text-sm";
                 })
                 .catch(err => {
-                    loadingStatus.innerText = "Akses kamera ditolak.";
+                    loadingStatus.innerText = "Akses kamera ditolak. Harap beri izin kamera pada browser Anda.";
                     loadingStatus.className = "mb-4 text-red-600 font-medium text-sm";
                 });
         }
@@ -122,6 +125,7 @@
             setInterval(async () => {
                 if (!modelsLoaded || attendanceMarked) return;
 
+                // Menggunakan detektor TinyFace dengan setingan input size standar
                 const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
                 canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 
