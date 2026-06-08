@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Absensi Pintar - BPJS Ketenagakerjaan</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    <style>
+        .video-container {
+            position: relative;
+        }
+        /* Canvas pelacak ditaruh tepat di atas video */
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans min-h-screen flex flex-col justify-between">
+
+    <header class="bg-green-700 text-white shadow-md p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-wide">BPJS Ketenagakerjaan — Portal Absensi Smart V2.0</h1>
+            <span class="bg-green-600 px-3 py-1 rounded text-sm font-semibold">Mode Mandiri (Mockup)</span>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 flex-grow flex flex-col items-center justify-center">
+        <div class="bg-white p-6 rounded-2xl shadow-xl w-full max-w-2xl text-center">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Presensi Wajah & Deteksi Senyum</h2>
+            <p class="text-gray-600 mb-6 text-sm">Silakan menghadap kamera dan <span class="font-bold text-green-600">TERSENYUMLAH</span> untuk melakukan verifikasi kehadiran.</p>
+
+            <div id="loadingStatus" class="mb-4 text-orange-600 font-medium animate-pulse text-sm">
+                Sistem sedang mengunduh model kecerdasan buatan (Mohon tunggu)...
+            </div>
+
+            <div class="mb-4 p-3 bg-blue-50 text-blue-800 rounded-xl font-medium text-sm border border-blue-200 hidden" id="nlpQuoteContainer">
+                💡 <span id="nlpQuote" class="italic"></span>
+            </div>
+
+            <div class="video-container flex justify-center items-center bg-black rounded-xl overflow-hidden aspect-video shadow-inner">
+                <video id="video" width="640" height="480" autoplay muted playsinline class="w-full h-full object-cover"></video>
+            </div>
+
+            <div class="mt-6 grid grid-cols-2 gap-4">
+                <div class="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                    <span class="block text-xs text-gray-500 uppercase font-semibold">Intensitas Senyuman</span>
+                    <span id="smileScore" class="text-2xl font-extrabold text-gray-700">0%</span>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-xl border border-gray-200 flex flex-col justify-center items-center">
+                    <span class="block text-xs text-gray-500 uppercase font-semibold mb-1">Status Kehadiran</span>
+                    <span id="attendanceStatus" class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">Belum Terverifikasi</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-800 text-gray-400 text-center py-3 text-xs">
+        &copy; 2026 IT Intern Project - Universitas Sumatera Utara (USU)
+    </footer>
+
+    <script>
+        const video = document.getElementById('video');
+        const loadingStatus = document.getElementById('loadingStatus');
+        const smileScoreDisplay = document.getElementById('smileScore');
+        const attendanceStatus = document.getElementById('attendanceStatus');
+        const nlpQuoteContainer = document.getElementById('nlpQuoteContainer');
+        const nlpQuote = document.getElementById('nlpQuote');
+        
+        let modelsLoaded = false;
+        let attendanceMarked = false;
+
+        // Corpus Data Teks untuk pemenuhan kriteria ILK3209 (Natural Language Processing)
+        const quotesDatabase = {
+            happy: [
+                "Luar biasa! Senyumanmu menularkan energi positif di kantor BPJS Ketenagakerjaan hari ini.",
+                "Semangat yang bagus! Pertahankan aura positif ini sepanjang jam kerja ya!",
+                "Senyummu adalah bukti kesiapanmu memberikan pelayanan terbaik hari ini kepada masyarakat."
+            ],
+            neutral: [
+                "Ayo angkat sedikit sudut bibirmu, buat hari kerja hari ini lebih ceria!",
+                "Fokus dan semangat, mari capai target performa kerja hari ini."
+            ]
+        };
+
+        // Fungsi Representasi NLP: Text Response Generation berdasarkan Analisis Klasifikasi Ekspresi
+        function generateMotivationalText(sentimentLabel) {
+            const listQuotes = quotesDatabase[sentimentLabel] || quotesDatabase.neutral;
+            // Algoritma pemilihan acak sederhana (random sampling) dari corpus
+            const randomIndex = Math.floor(Math.random() * listQuotes.length);
+            
+            // Tampilkan ke komponen UI
+            nlpQuote.innerText = listQuotes[randomIndex];
+            nlpQuoteContainer.classList.remove('hidden');
+        }
+
+        // Inisialisasi Pemuatan Model AI Pemrosesan Citra Digital
+        async function loadModels() {
+            const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+            try {
+                // Memuat struktur jaringan saraf tiruan (Weights & Architecture) pelacak wajah dan emosi
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceExpressionModel.loadFromUri(MODEL_URL);
+                modelsLoaded = true;
+                loadingStatus.innerText = "Model AI Sukses Dimuat! Sedang menghubungkan ke kamera...";
+                loadingStatus.className = "mb-4 text-blue-600 font-medium text-sm";
+                startVideo();
+            } catch (error) {
+                loadingStatus.innerText = "Gagal memuat model AI. Pastikan koneksi internet aktif.";
+                console.error(error);
+            }
+        }
+
+        // Mengaktifkan Aliran Video Perangkat Keras Kamera (IoT/Hardware Link)
+        function startVideo() {
+            navigator.mediaDevices.getUserMedia({ video: {} })
+                .then(stream => {
+                    video.srcObject = stream;
+                    loadingStatus.innerText = "Sistem AI Siap. Silakan Senyum!";
+                    loadingStatus.className = "mb-4 text-green-600 font-medium text-sm";
+                })
+                .catch(err => {
+                    loadingStatus.innerText = "Akses kamera ditolak atau tidak ditemukan hardware.";
+                    loadingStatus.className = "mb-4 text-red-600 font-medium text-sm";
+                    console.error(err);
+                });
+        }
+
+        // Loop Pemrosesan Citra Digital secara berkala (Real-time Frame Analysis)
+        video.addEventListener('play', () => {
+            // Membuat lapisan canvas penanda visual tepat di atas elemen video
+            const canvas = faceapi.createCanvasFromMedia(video);
+            document.querySelector('.video-container').append(canvas);
+            
+            const displaySize = { width: video.clientWidth, height: video.clientHeight };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            // Interval eksekusi deteksi (Setiap 300 Milidetik / 0.3 Detik sekali)
+            setInterval(async () => {
+                if (!modelsLoaded || attendanceMarked) return;
+
+                // Mengambil satu bingkai gambar wajah dan mengklasifikasikan ekspresinya
+                const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
+
+                // Bersihkan bekas garis kotak deteksi pada frame sebelumnya
+                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+
+                if (detection) {
+                    // Gambar ulang kotak indikator pelacakan wajah di layar
+                    const resizedDetections = faceapi.resizeResults(detection, displaySize);
+                    faceapi.draw.drawDetections(canvas, resizedDetections);
+
+                    // Ambil nilai probabilitas ekspresi "happy" (senang/senyum) skala 0 hingga 1
+                    const smileValue = detection.expressions.happy;
+                    const smilePercentage = Math.round(smileValue * 100);
+                    
+                    smileScoreDisplay.innerText = smilePercentage + "%";
+
+                    // REGULASI AMBANG BATAS: Jika tingkat senyuman melebihi batas kelulusan 75%
+                    if (smileValue > 0.75) {
+                        attendanceMarked = true; // Kunci sistem agar tidak memproses ulang
+                        smileScoreDisplay.className = "text-2xl font-extrabold text-green-600";
+                        
+                        // Perbarui status akhir kehadiran
+                        attendanceStatus.innerText = "Absen Berhasil!";
+                        attendanceStatus.className = "px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold animate-bounce";
+                        
+                        loadingStatus.innerText = "Terima kasih! Data absensi Anda hari ini berhasil disimpan.";
+                        loadingStatus.className = "mb-4 text-green-700 font-bold text-sm";
+                        
+                        // Jalankan modul NLP untuk menampilkan teks motivasi hasil deteksi emosi positif
+                        generateMotivationalText('happy');
+                        
+                        // Hapus overlay canvas pelacak agar layar bersih kembali
+                        canvas.remove();
+                    }
+                } else {
+                    smileScoreDisplay.innerText = "0%";
+                }
+            }, 300);
+        });
+
+        // Jalankan fungsi saat jendela browser selesai dimuat penuh
+        window.onload = loadModels;
+    </script>
+</body>
+</html>
