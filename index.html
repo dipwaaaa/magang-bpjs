@@ -6,7 +6,7 @@
     <title>Portal Absensi Pintar - BPJS Ketenagakerjaan</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     
-    <script defer src="https://justadudewhohack.github.io/face-api.js/dist/face-api.js"></script>
+    <script defer src="./face-api.js"></script>
     
     <style>
         .video-container { position: relative; }
@@ -86,29 +86,30 @@
             nlpQuoteContainer.classList.remove('hidden');
         }
 
-        // PERBAIKAN TOTAL: Menghitung alamat absolut secara otomatis untuk GitHub Pages
         async function loadModels() {
-            // Mengambil alamat dasar domain web yang sedang aktif saat ini
+            // Deteksi otomatis alamat dasar lokal atau hosting GitHub Pages secara dinamis
             const origin = window.location.origin;
             const pathname = window.location.pathname;
+            const MODEL_URL = origin + pathname.replace(/\/index\.html$/, "").replace(/\/$/, "") + '/models';
             
-            // Menggabungkan jalur domain agar menjadi alamat absolut yang valid menuju folder models
-            const MODEL_URL = origin + pathname.replace(/\/$/, "") + '/models';
-            
-            console.log("Mencoba memuat model AI dari alamat absolut:", MODEL_URL);
+            console.log("Memuat model faceapi dari path absolut:", MODEL_URL);
 
             try {
-                // Memanggil model menggunakan alamat absolut yang sudah fix
-                await faceapi.loadTinyFaceDetectorModel(MODEL_URL);
-                await faceapi.loadFaceExpressionModel(MODEL_URL);
+                // Memastikan library faceapi sudah terbaca sepenuhnya oleh browser
+                if (typeof faceapi === 'undefined') {
+                    throw new Error("File face-api.js lokal gagal terbaca oleh browser.");
+                }
+
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceExpressionModel.loadFromUri(MODEL_URL);
                 
                 modelsLoaded = true;
                 loadingStatus.innerText = "Model AI Lokal Berhasil Dimuat! Mengaktifkan kamera...";
                 loadingStatus.className = "mb-4 text-blue-600 font-medium text-sm";
                 startVideo();
             } catch (error) {
-                loadingStatus.innerText = "Gagal memuat struktur model AI. Periksa tab Console untuk detail eror.";
-                console.error("Detail eror pemuatan model:", error);
+                loadingStatus.innerText = "Gagal memuat model AI. Pastikan file face-api.js dan folder models di-upload dengan benar.";
+                console.error(error);
             }
         }
 
@@ -134,7 +135,6 @@
             setInterval(async () => {
                 if (!modelsLoaded || attendanceMarked) return;
 
-                // Menggunakan detektor TinyFace dengan setingan input size standar
                 const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
                 canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 
