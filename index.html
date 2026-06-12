@@ -6,7 +6,7 @@
     <title>Portal Absensi Pintar - BPJS Ketenagakerjaan</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     
-    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    <script defer src="./face-api.js"></script>
     
     <style>
         .video-container { position: relative; }
@@ -29,6 +29,13 @@
 
             <div id="loadingStatus" class="mb-4 text-orange-600 font-medium animate-pulse text-sm">
                 Sistem sedang memuat model AI (Mohon tunggu)...
+            </div>
+
+            <div class="mb-4 p-4 bg-slate-900 text-left rounded-xl font-mono text-xs text-green-400 border border-slate-700 hidden" id="nlpPipelineContainer">
+                <div class="text-white border-b border-slate-700 pb-1 mb-2 font-bold uppercase tracking-wider">🖥️ NLP Sentiment Analysis Pipeline Log:</div>
+                <div id="nlpLogTokenization"></div>
+                <div id="nlpLogIntent"></div>
+                <div id="nlpLogContext"></div>
             </div>
 
             <div class="mb-4 p-3 bg-blue-50 text-blue-800 rounded-xl font-medium text-sm border border-blue-200 hidden" id="nlpQuoteContainer">
@@ -64,42 +71,181 @@
         const nlpQuoteContainer = document.getElementById('nlpQuoteContainer');
         const nlpQuote = document.getElementById('nlpQuote');
         
+        // Komponen log pipeline baru
+        const nlpPipelineContainer = document.getElementById('nlpPipelineContainer');
+        const nlpLogTokenization = document.getElementById('nlpLogTokenization');
+        const nlpLogIntent = document.getElementById('nlpLogIntent');
+        const nlpLogContext = document.getElementById('nlpLogContext');
+        
         let modelsLoaded = false;
         let attendanceMarked = false;
 
-        const quotesDatabase = {
-            happy: [
-                "Luar biasa! Senyumanmu menularkan energi positif di kantor BPJS Ketenagakerjaan hari ini.",
-                "Semangat yang bagus! Pertahankan aura positif ini sepanjang jam kerja ya!",
-                "Senyummu adalah bukti kesiapanmu memberikan pelayanan terbaik hari ini kepada masyarakat."
-            ],
-            neutral: [
-                "Ayo angkat sedikit sudut bibirmu, buat hari kerja hari ini lebih ceria!",
-                "Fokus dan semangat, mari capai target performa kerja hari ini."
-            ]
+        // Corpus Data Dinamis Berdasarkan Konteks Waktu untuk Natural Language Generation (NLG)
+        const nlpCorpusTemplate = {
+            pagi: {
+                happy: [
+                    "Selamat pagi! Energi positif dari senyumanmu adalah modal terbaik untuk melayani masyarakat di BPJS Ketenagakerjaan hari ini.",
+                    "Pagi yang cerah! Semangat yang luar biasa, pertahankan aura kebahagiaan ini di meja kerja.",
+                    "Selamat pagi! Senyum profesionalmu membuktikan kesiapan penuh untuk produktivitas hari ini."
+                ],
+                neutral: [
+                    "Selamat pagi. Mari awali hari dengan fokus tinggi dan persiapkan stamina untuk target pelayanan hari ini.",
+                    "Pagi hari adalah waktu terbaik untuk konsentrasi. Mari bangun sinergi kerja yang solid."
+                ]
+            },
+            siang: {
+                happy: [
+                    "Selamat siang! Terima kasih telah menjaga suasana kerja tetap menyenangkan dengan senyuman terbaikmu.",
+                    "Siang yang produktif! Senyum ceriamu adalah amunisi terbaik untuk mengusir rasa penat di jam kerja ini."
+                ],
+                neutral: [
+                    "Selamat siang. Tetap fokus dan jaga ritme kerja operasional pelayanan BPJS Ketenagakerjaan.",
+                    "Jam siang rawan konsentrasi menurun, mari segarkan pikiran dan kembali fokus pada target."
+                ]
+            },
+            sore: {
+                happy: [
+                    "Selamat sore! Kerja keras yang hebat ditutup dengan senyuman yang tulus, kamu luar biasa hari ini.",
+                    "Sore yang damai! Terima kasih telah menyebarkan aura positif dari pagi hingga akhir jam operasional kantor."
+                ],
+                neutral: [
+                    "Selamat sore. Mari bersiap menyelesaikan sisa dokumentasi tugas dan melakukan rekapitulasi kerja.",
+                    "Evaluasi tugas hari ini dengan tenang dan selamat bersiap untuk pulang dengan aman."
+                ]
+            }
         };
 
-        function generateMotivationalText(sentimentLabel) {
-            const listQuotes = quotesDatabase[sentimentLabel] || quotesDatabase.neutral;
-            const randomIndex = Math.floor(Math.random() * listQuotes.length);
-            nlpQuote.innerText = listQuotes[randomIndex];
+        // PIPELINE UTAMA NLP: Tokenization, Intent Classification, Context Analysis, & Response Generation
+        function processNLPTextPipeline(rawSentimentText) {
+            // 1. Text Normalization & Tokenization (Memecah string mentah menjadi token kata berskala kecil)
+            const sanitizedText = rawSentimentText.toLowerCase().trim();
+            const tokens = sanitizedText.split(/[\s,._-]+/);
+            nlpLogTokenization.innerHTML = `<span class="text-blue-400">[1. Tokenization]:</span> Raw string "${rawSentimentText}" -> Tokens: [${tokens.map(t => `'${t}'`).join(', ')}]`;
+
+            // 2. Rule-Based Intent Classification (Menganalisis token untuk menentukan klasifikasi niat/sentimen emosi)
+            let detectedIntent = "neutral";
+            if (tokens.includes("happy") || tokens.includes("joyful") || tokens.includes("smile")) {
+                detectedIntent = "happy";
+            }
+            nlpLogIntent.innerHTML = `<span class="text-yellow-400">[2. Intent Analysis]:</span> Keywords matched! Sentiment Classified as -> <span class="font-bold text-yellow-300 uppercase">${detectedIntent}</span>`;
+
+            // 3. Contextual Analysis via Metadata (Mendeteksi parameter waktu eksternal nyata untuk context-awareness)
+            const currentHour = new Date().getHours();
+            let timeContext = "siang"; // Default state
+            
+            if (currentHour >= 5 && currentHour < 11) {
+                timeContext = "pagi";
+            } else if (currentHour >= 11 && currentHour < 15) {
+                timeContext = "siang";
+            } else {
+                timeContext = "sore";
+            }
+            nlpLogContext.innerHTML = `<span class="text-purple-400">[3. Contextual Mining]:</span> Current Time Hour: ${currentHour}:00 -> Time-Context: <span class="font-bold text-purple-300 uppercase">${timeContext}</span>`;
+
+            // Tampilkan kotak log pipeline di layar
+            nlpPipelineContainer.classList.remove('hidden');
+
+            // 4. Natural Language Generation (NLG Response Generation)
+            // Memilih database korpus kata bahasa Indonesia yang cocok secara persilangan Intent & Context
+            const bucketQuotes = nlpCorpusTemplate[timeContext][detectedIntent];
+            const randomIndex = Math.floor(Math.random() * bucketQuotes.length);
+            const finalGeneratedText = bucketQuotes[randomIndex];
+
+            // Cetak teks output final hasil rekayasa kecerdasan bahasa ke layar
+            nlpQuote.innerText = finalGeneratedText;
             nlpQuoteContainer.classList.remove('hidden');
         }
 
-        // SOLUSI PAMUNGKAS: Memanggil model dari CDN global yang tipe MIME-nya dijamin aman dan valid oleh browser
+        async function verifyModelFiles(baseUrl) {
+            const requiredFiles = [
+                "tiny_face_detector_model-weights_manifest.json",
+                "tiny_face_detector_model-shard1",
+                "face_expression_model-weights_manifest.json",
+                "face_expression_model-shard1"
+            ];
+
+            for (const fileName of requiredFiles) {
+                const fileUrl = new URL(fileName, baseUrl).href;
+                const res = await fetch(fileUrl, { cache: 'no-store' });
+                if (!res.ok) {
+                    throw new Error(`File model tidak ditemukan: ${fileUrl} (HTTP ${res.status})`);
+                }
+            }
+        }
+
+        async function loadTinyFaceDetectorCompat(modelUrl) {
+            if (faceapi?.nets?.tinyFaceDetector?.loadFromUri) {
+                await faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl);
+                return;
+            }
+            if (faceapi?.loadTinyFaceDetectorModel) {
+                await faceapi.loadTinyFaceDetectorModel(modelUrl);
+                return;
+            }
+            throw new Error('API TinyFaceDetector tidak ditemukan pada face-api.js yang aktif.');
+        }
+
+        async function loadFaceExpressionCompat(modelUrl) {
+            if (faceapi?.nets?.faceExpressionNet?.loadFromUri) {
+                await faceapi.nets.faceExpressionNet.loadFromUri(modelUrl);
+                return;
+            }
+            if (faceapi?.nets?.faceExpressionModel?.loadFromUri) {
+                await faceapi.nets.faceExpressionModel.loadFromUri(modelUrl);
+                return;
+            }
+            if (faceapi?.loadFaceExpressionModel) {
+                await faceapi.loadFaceExpressionModel(modelUrl);
+                return;
+            }
+            throw new Error('API FaceExpression tidak ditemukan pada face-api.js yang aktif.');
+        }
+
         async function loadModels() {
-            const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+            if (window.location.protocol === 'file:') {
+                loadingStatus.innerText = "Buka lewat server (http://localhost), bukan file://, agar model bisa dimuat.";
+                loadingStatus.className = "mb-4 text-red-600 font-medium text-sm";
+                return;
+            }
+
+            const modelCandidates = [
+                new URL('./models/', window.location.href).href,
+                new URL('models/', window.location.origin + window.location.pathname).href,
+                new URL('/models/', window.location.origin).href
+            ];
+
+            const uniqueCandidates = [...new Set(modelCandidates)];
+            let lastError = null;
+
             try {
-                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceExpressionModel.loadFromUri(MODEL_URL);
+                if (typeof faceapi === 'undefined') {
+                    throw new Error("Pustaka faceapi belum termuat sempurna.");
+                }
+
+                for (const modelUrl of uniqueCandidates) {
+                    try {
+                        console.log("Mencoba mengambil model AI dari:", modelUrl);
+                        await verifyModelFiles(modelUrl);
+
+                        await loadTinyFaceDetectorCompat(modelUrl);
+                        await loadFaceExpressionCompat(modelUrl);
+
+                        modelsLoaded = true;
+                        loadingStatus.innerText = "Sistem AI Aktif. Silakan Senyum!";
+                        loadingStatus.className = "mb-4 text-green-600 font-medium text-sm";
+                        startVideo();
+                        return;
+                    } catch (candidateError) {
+                        lastError = candidateError;
+                        console.warn("Gagal pada path model:", modelUrl, candidateError);
+                    }
+                }
                 
-                modelsLoaded = true;
-                loadingStatus.innerText = "Sistem AI Aktif. Silakan Senyum!";
-                loadingStatus.className = "mb-4 text-green-600 font-medium text-sm";
-                startVideo();
+                throw lastError || new Error("Semua kandidat path model gagal dimuat.");
             } catch (error) {
-                loadingStatus.innerText = "Gagal memuat model AI. Harap muat ulang halaman.";
-                console.error(error);
+                loadingStatus.innerText = "Gagal memuat model AI. Cek Console (F12) untuk detail path/file yang gagal.";
+                loadingStatus.className = "mb-4 text-red-600 font-medium text-sm";
+                console.error("Detail Error:", error);
             }
         }
 
@@ -132,6 +278,7 @@
                     const smilePercentage = Math.round(smileValue * 100);
                     smileScoreDisplay.innerText = smilePercentage + "%";
 
+                    // AMBANG BATAS ABSENSI BERHASIL
                     if (smileValue > 0.75) {
                         attendanceMarked = true;
                         smileScoreDisplay.className = "text-2xl font-extrabold text-green-600";
@@ -140,7 +287,9 @@
                         loadingStatus.innerText = "Terima kasih! Data absensi Anda hari ini berhasil disimpan.";
                         loadingStatus.className = "mb-4 text-green-700 font-bold text-sm";
                         
-                        generateMotivationalText('happy');
+                        // EKSEKUSI PIPELINE NLP secara eksplisit dengan mengirimi string label emosi
+                        processNLPTextPipeline('happy_smile_detected');
+                        
                         canvas.remove();
                     }
                 } else {
